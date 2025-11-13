@@ -1,0 +1,92 @@
+# VARBX Due Diligence Configuration
+
+# Data paths (relative to project root)
+paths:
+  data_raw: "data/raw"
+  data_interim: "data/interim"
+  outputs_figures: "outputs/figures"
+  outputs_tables: "outputs/tables"
+  notebooks: "notebooks"
+
+# Data sources
+data:
+  # VARBX data file (CSV format expected)
+  varbx_file: "varbx_monthly_returns.csv"
+  # Benchmark data files
+  sp500_file: "sp500_monthly.csv"
+  agg_file: "agg_monthly.csv"
+  
+  # Alternative: use yfinance to download benchmarks
+  use_yfinance: false
+  benchmark_tickers:
+    sp500: "SPY"
+    agg: "AGG"
+  
+  # Date column name in CSV files
+  date_column: "date"
+  
+  # Return column names
+  return_columns:
+    varbx: "return"
+    sp500: "return"
+    agg: "return"
+
+# Analysis parameters
+analysis:
+  # Risk-free rate (annualized, as decimal)
+  risk_free_rate: 0.02
+  
+  # Rolling window sizes (in months)
+  rolling_windows:
+    - 12
+    - 24
+    - 36
+  
+  # Default rolling window for metrics
+  default_rolling_window: 12
+  
+  # Compounding periods per year (monthly = 12)
+  periods_per_year: 12
+  
+  # VaR confidence levels
+  var_confidence_levels:
+    - 0.95
+    - 0.99
+
+# Visualization settings
+viz:
+  # Figure DPI
+  dpi: 300
+  
+  # Figure size (width, height in inches)
+  figure_size:
+    default: [10, 6]
+    wide: [14, 6]
+    tall: [8, 10]
+  
+  # Color palette
+  colors:
+    varbx: "#1f77b4"
+    sp500: "#ff7f0e"
+    agg: "#2ca02c"
+    grid: "#e0e0e0"
+    text: "#333333"
+  
+  # Font settings
+  font:
+    family: "sans-serif"
+    size: 11
+    title_size: 14
+
+# Export settings
+export:
+  # Figure formats
+  figure_formats:
+    - "png"
+    - "pdf"
+  
+  # Table formats
+  table_formats:
+    - "csv"
+    - "latex"
+
