@@ -206,3 +206,62 @@ def calculate_rolling_var(
     )
     return rolling_var
 
+
+def calculate_standard_deviation(
+    returns: pd.Series,
+    periods_per_year: Optional[int] = None,
+    annualized: bool = False,
+) -> float:
+    """Calculate standard deviation of returns.
+
+    Args:
+        returns: Series of periodic returns
+        periods_per_year: Number of periods per year
+        annualized: If True, annualize the standard deviation
+
+    Returns:
+        Standard deviation as decimal
+    """
+    return calculate_volatility(returns, periods_per_year=periods_per_year, annualized=annualized)
+
+
+def calculate_semi_deviation(
+    returns: pd.Series,
+    periods_per_year: Optional[int] = None,
+    annualized: bool = True,
+    threshold: Optional[float] = None,
+) -> float:
+    """Calculate semi-deviation (downside deviation below mean or threshold).
+
+    Semi-deviation is the standard deviation of returns below the mean (or threshold).
+
+    Args:
+        returns: Series of periodic returns
+        periods_per_year: Number of periods per year
+        annualized: If True, annualize the deviation
+        threshold: Threshold for semi-deviation. If None, uses mean return.
+
+    Returns:
+        Semi-deviation as decimal
+    """
+    if len(returns) == 0:
+        return np.nan
+
+    if threshold is None:
+        threshold = returns.mean()
+
+    downside_returns = returns[returns < threshold] - threshold
+
+    if len(downside_returns) == 0:
+        return 0.0
+
+    semi_std = downside_returns.std()
+
+    if annualized:
+        if periods_per_year is None:
+            config = get_config()
+            periods_per_year = config.analysis.get("periods_per_year", 12)
+        semi_std = semi_std * np.sqrt(periods_per_year)
+
+    return semi_std
+

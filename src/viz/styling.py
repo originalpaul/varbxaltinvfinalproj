@@ -48,7 +48,8 @@ def get_colors() -> dict[str, str]:
     return {
         "varbx": colors.get("varbx", "#1f77b4"),
         "sp500": colors.get("sp500", "#ff7f0e"),
-        "agg": colors.get("agg", "#2ca02c"),
+        "hfri_ed": colors.get("hfri_ed", "#2ca02c"),
+        "hfri": colors.get("hfri_ed", "#2ca02c"),  # Alias for backward compatibility
         "grid": colors.get("grid", "#e0e0e0"),
         "text": colors.get("text", "#333333"),
     }

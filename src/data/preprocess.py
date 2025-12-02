@@ -23,19 +23,50 @@ def align_timeframes(
     if not dfs:
         return tuple()
 
-    # Find common date range
-    date_series = [df[date_column] for df in dfs]
-    common_start = max(s.min() for s in date_series)
-    common_end = min(s.max() for s in date_series)
+    non_empty_dfs = [df for df in dfs if len(df) > 0]
+    empty_indices = [i for i, df in enumerate(dfs) if len(df) == 0]
+    
+    if not non_empty_dfs:
+        return tuple(dfs)  # Return original if all are empty
 
-    # Filter each DataFrame to common range
-    aligned_dfs = []
-    for df in dfs:
-        mask = (df[date_column] >= common_start) & (df[date_column] <= common_end)
-        aligned_df = df[mask].copy()
-        aligned_dfs.append(aligned_df)
+    # Normalize all dates to timezone-naive and ensure datetime type
+    normalized_dfs = []
+    for df in non_empty_dfs:
+        df_copy = df.copy()
+        if date_column in df_copy.columns and len(df_copy) > 0:
+            if not pd.api.types.is_datetime64_any_dtype(df_copy[date_column]):
+                df_copy[date_column] = pd.to_datetime(df_copy[date_column])
+            if hasattr(df_copy[date_column].dtype, 'tz') and df_copy[date_column].dt.tz is not None:
+                df_copy[date_column] = df_copy[date_column].dt.tz_localize(None)
+            elif hasattr(df_copy[date_column], 'dt') and df_copy[date_column].dt.tz is not None:
+                df_copy[date_column] = df_copy[date_column].dt.tz_localize(None)
+        normalized_dfs.append(df_copy)
 
-    return tuple(aligned_dfs)
+    if normalized_dfs and all(len(df) > 0 for df in normalized_dfs):
+        date_series = [df[date_column] for df in normalized_dfs]
+        common_start = max(s.min() for s in date_series)
+        common_end = min(s.max() for s in date_series)
+
+        aligned_dfs = []
+        for df in normalized_dfs:
+            if len(df) > 0:
+                mask = (df[date_column] >= common_start) & (df[date_column] <= common_end)
+                aligned_df = df[mask].copy()
+                aligned_dfs.append(aligned_df)
+            else:
+                aligned_dfs.append(df)
+        
+        result = []
+        aligned_idx = 0
+        for i, original_df in enumerate(dfs):
+            if i in empty_indices:
+                result.append(original_df)
+            else:
+                result.append(aligned_dfs[aligned_idx])
+                aligned_idx += 1
+        return tuple(result)
+    
+    return tuple(dfs)
 
 
 def handle_missing_values(
@@ -108,32 +139,63 @@ def merge_returns_dataframes(
     if not dfs:
         return pd.DataFrame()
 
-    # Align timeframes first
-    aligned_dfs = align_timeframes(*dfs, date_column=date_column)
+    non_empty_with_idx = [(i, df) for i, df in enumerate(dfs) if len(df) > 0]
+    empty_indices = [i for i, df in enumerate(dfs) if len(df) == 0]
 
-    # Start with first DataFrame and rename its return column
-    result = aligned_dfs[0].copy()
-    if suffixes and len(suffixes) > 0:
-        first_suffix = suffixes[0]
+    if not non_empty_with_idx:
+        if suffixes and len(suffixes) > 0:
+            cols = [date_column] + [f"return_{s}" for s in suffixes]
+        else:
+            cols = [date_column] + [f"return_{i}" for i in range(len(dfs))]
+        return pd.DataFrame(columns=cols)
+
+    non_empty_dfs = [df for _, df in non_empty_with_idx]
+    non_empty_indices = [i for i, _ in non_empty_with_idx]
+
+    normalized_dfs = []
+    for df in non_empty_dfs:
+        df_copy = df.copy()
+        if date_column in df_copy.columns and len(df_copy) > 0:
+            if not pd.api.types.is_datetime64_any_dtype(df_copy[date_column]):
+                df_copy[date_column] = pd.to_datetime(df_copy[date_column])
+            if hasattr(df_copy[date_column], 'dt') and df_copy[date_column].dt.tz is not None:
+                df_copy[date_column] = df_copy[date_column].dt.tz_localize(None)
+        normalized_dfs.append(df_copy)
+
+    result = normalized_dfs[0].copy()
+    first_idx = non_empty_indices[0]
+    
+    if suffixes and first_idx < len(suffixes):
+        first_suffix = suffixes[first_idx]
         result = result.rename(columns={"return": f"return_{first_suffix}"})
     else:
-        result = result.rename(columns={"return": "return_0"})
+        result = result.rename(columns={"return": f"return_{first_idx}"})
 
-    # Merge remaining DataFrames
-    for i, df in enumerate(aligned_dfs[1:], start=1):
-        if suffixes and i < len(suffixes):
-            suffix = suffixes[i]
+    for i, df in enumerate(normalized_dfs[1:], start=1):
+        if len(df) == 0:
+            continue
+        
+        orig_idx = non_empty_indices[i]
+        if suffixes and orig_idx < len(suffixes):
+            suffix = suffixes[orig_idx]
             return_col = f"return_{suffix}"
         else:
-            return_col = f"return_{i}"
+            return_col = f"return_{orig_idx}"
 
-        # Rename return column
         df_renamed = df.rename(columns={"return": return_col})
 
-        # Merge on date
         result = pd.merge(
-            result, df_renamed[[date_column, return_col]], on=date_column, how="inner"
+            result, df_renamed[[date_column, return_col]], on=date_column, how="outer"
         )
+
+    for empty_idx in empty_indices:
+        if suffixes and empty_idx < len(suffixes):
+            suffix = suffixes[empty_idx]
+        else:
+            suffix = str(empty_idx)
+        col_name = f"return_{suffix}"
+        if col_name not in result.columns:
+            result[col_name] = np.nan
 
     return result.sort_values(date_column).reset_index(drop=True)
 
@@ -157,20 +219,22 @@ def clean_returns_dataframe(
     """
     df_clean = df.copy()
 
-    # Ensure date column is datetime
     if not pd.api.types.is_datetime64_any_dtype(df_clean[date_column]):
         df_clean[date_column] = pd.to_datetime(df_clean[date_column])
+    
+    if len(df_clean) > 0:
+        if hasattr(df_clean[date_column].dtype, 'tz') and df_clean[date_column].dt.tz is not None:
+            df_clean[date_column] = df_clean[date_column].dt.tz_localize(None)
+        elif hasattr(df_clean[date_column], 'dt') and df_clean[date_column].dt.tz is not None:
+            df_clean[date_column] = df_clean[date_column].dt.tz_localize(None)
 
-    # Sort by date
     df_clean = df_clean.sort_values(date_column).reset_index(drop=True)
 
-    # Handle missing values in return column
     if return_column in df_clean.columns:
         df_clean[return_column] = handle_missing_values(
             df_clean[return_column], method=handle_missing
         )
 
-    # Remove rows with missing dates
     df_clean = df_clean.dropna(subset=[date_column])
 
     return df_clean

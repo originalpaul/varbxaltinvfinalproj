@@ -212,3 +212,88 @@ def calculate_information_ratio(
 
     return information_ratio
 
+
+def calculate_correlation(
+    returns: pd.Series, benchmark_returns: pd.Series
+) -> float:
+    """Calculate correlation between returns and benchmark.
+
+    Args:
+        returns: Series of asset returns
+        benchmark_returns: Series of benchmark returns
+
+    Returns:
+        Correlation coefficient
+    """
+    # Align series
+    aligned = pd.DataFrame({"returns": returns, "benchmark": benchmark_returns}).dropna()
+
+    if len(aligned) < 2:
+        return np.nan
+
+    correlation = aligned["returns"].corr(aligned["benchmark"])
+
+    return correlation
+
+
+def calculate_jensen_alpha(
+    returns: pd.Series,
+    benchmark_returns: pd.Series,
+    periods_per_year: Optional[int] = None,
+    risk_free_rate: Optional[float] = None,
+) -> dict[str, float]:
+    """Calculate Jensen's Alpha (same as alpha from CAPM regression).
+
+    Args:
+        returns: Series of asset returns
+        benchmark_returns: Series of benchmark returns
+        periods_per_year: Number of periods per year
+        risk_free_rate: Annual risk-free rate as decimal
+
+    Returns:
+        Dictionary with 'jensen_alpha' and 'jensen_alpha_annualized'
+    """
+    regression_result = calculate_alpha_beta(
+        returns, benchmark_returns, periods_per_year=periods_per_year, risk_free_rate=risk_free_rate
+    )
+
+    return {
+        "jensen_alpha": regression_result["alpha"],
+        "jensen_alpha_annualized": regression_result["alpha_annualized"],
+    }
+
+
+def calculate_up_down_capture(
+    returns: pd.Series, benchmark_returns: pd.Series
+) -> dict[str, float]:
+    """Calculate up capture and down capture ratios.
+
+    Up Capture: Average return when benchmark is positive / Average benchmark return when positive
+    Down Capture: Average return when benchmark is negative / Average benchmark return when negative
+
+    Args:
+        returns: Series of asset returns
+        benchmark_returns: Series of benchmark returns
+
+    Returns:
+        Dictionary with 'up_capture' and 'down_capture'
+    """
+    aligned = pd.DataFrame({"returns": returns, "benchmark": benchmark_returns}).dropna()
+
+    if len(aligned) < 2:
+        return {"up_capture": np.nan, "down_capture": np.nan}
+
+    up_periods = aligned[aligned["benchmark"] > 0]
+    if len(up_periods) > 0 and up_periods["benchmark"].mean() != 0:
+        up_capture = up_periods["returns"].mean() / up_periods["benchmark"].mean()
+    else:
+        up_capture = np.nan
+
+    down_periods = aligned[aligned["benchmark"] < 0]
+    if len(down_periods) > 0 and down_periods["benchmark"].mean() != 0:
+        down_capture = down_periods["returns"].mean() / down_periods["benchmark"].mean()
+    else:
+        down_capture = np.nan
+
+    return {"up_capture": up_capture, "down_capture": down_capture}
+

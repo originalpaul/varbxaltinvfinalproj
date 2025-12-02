@@ -14,13 +14,12 @@ data:
   varbx_file: "varbx_monthly_returns.csv"
   # Benchmark data files
   sp500_file: "sp500_monthly.csv"
-  agg_file: "agg_monthly.csv"
+  hfri_ed_file: "hfri_merger_arb.csv"  # HFRI ED: Merger Arbitrage Index
   
   # Alternative: use yfinance to download benchmarks
   use_yfinance: false
   benchmark_tickers:
     sp500: "SPY"
-    agg: "AGG"
   
   # Date column name in CSV files
   date_column: "date"
@@ -29,7 +28,7 @@ data:
   return_columns:
     varbx: "return"
     sp500: "return"
-    agg: "return"
+    hfri_ed: "return"
 
 # Analysis parameters
 analysis:
@@ -68,7 +67,7 @@ viz:
   colors:
     varbx: "#1f77b4"
     sp500: "#ff7f0e"
-    agg: "#2ca02c"
+    hfri_ed: "#2ca02c"
     grid: "#e0e0e0"
     text: "#333333"
   
