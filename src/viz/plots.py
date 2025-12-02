@@ -1,6 +1,6 @@
 """Plotting functions for VARBX analysis."""
 
-from typing import Optional
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -101,14 +101,14 @@ def plot_rolling_metric(
 
 
 def plot_drawdown(
-    drawdown_series: pd.Series,
+    drawdown_series: Union[pd.Series, dict[str, pd.Series]],
     title: str = "Drawdown",
     figsize: Optional[tuple[float, float]] = None,
 ) -> plt.Figure:
     """Plot drawdown series.
 
     Args:
-        drawdown_series: Series of drawdown values
+        drawdown_series: Series of drawdown values, or dictionary mapping series names to drawdown Series
         title: Plot title
         figsize: Figure size. If None, uses config default.
 
@@ -123,20 +123,58 @@ def plot_drawdown(
     fig, ax = plt.subplots(figsize=figsize)
     colors = get_colors()
 
-    # Fill area under curve
-    ax.fill_between(
-        drawdown_series.index,
-        drawdown_series.values,
-        0,
-        color=colors["varbx"],
-        alpha=0.3,
-    )
-    ax.plot(drawdown_series.index, drawdown_series.values, linewidth=2, color=colors["varbx"])
+    # Handle both single series and dictionary of series
+    if isinstance(drawdown_series, dict):
+        # Multiple series - plot all of them
+        color_map = {
+            "VARBX": colors["varbx"],
+            "S&P 500": colors["sp500"],
+            "SP500": colors["sp500"],
+            "HFRI ED": colors["hfri_ed"],
+            "HFRI": colors["hfri_ed"],
+        }
+        
+        min_drawdown = 0
+        for name, series in drawdown_series.items():
+            color = color_map.get(name, None)
+            if color is None:
+                # Use default color cycle
+                color = None
+            
+            ax.plot(series.index, series.values, linewidth=2, color=color, label=name, alpha=0.8)
+            ax.fill_between(
+                series.index,
+                series.values,
+                0,
+                color=color,
+                alpha=0.2,
+            )
+            
+            if len(series) > 0:
+                series_min = series.min()
+                if series_min < min_drawdown:
+                    min_drawdown = series_min
+        
+        ax.legend(loc="best")
+        if min_drawdown < 0:
+            ax.set_ylim(bottom=min_drawdown * 1.1)
+    else:
+        # Single series - original behavior
+        ax.fill_between(
+            drawdown_series.index,
+            drawdown_series.values,
+            0,
+            color=colors["varbx"],
+            alpha=0.3,
+        )
+        ax.plot(drawdown_series.index, drawdown_series.values, linewidth=2, color=colors["varbx"])
+        
+        if len(drawdown_series) > 0:
+            ax.set_ylim(bottom=min(drawdown_series.min() * 1.1, -0.01))
 
     ax.set_xlabel("Date")
     ax.set_ylabel("Drawdown")
     ax.set_title(title)
-    ax.set_ylim(bottom=min(drawdown_series.min() * 1.1, -0.01))
 
     apply_style(fig, ax)
 
